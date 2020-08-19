@@ -1,0 +1,935 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+
+  Prefix:
+    Description: Stack Prefix Name
+    Type: String
+
+  VpcNet:
+    Description: VPC Reference Name
+    Type: String
+
+  LatestAmiId:
+    Description: AMI ID Used in EC2 Resources
+    Type: String
+  
+  KeyName:
+    Description: Key Name Reference
+    Type: String
+
+  CidrBlockPublicSubnet1A:
+    Description: Cidr Block for Public Subnet 1A
+    Type: String
+  
+  CidrBlockPublicSubnet1B:
+    Description: Cidr Block for Public Subnet 1B
+    Type: String
+
+  CidrBlockPrivateSubnet1A:
+    Description: Cidr Block for Private Subnet 1A
+    Type: String
+  
+  CidrBlockPrivateSubnet1B:
+    Description: Cidr Block for Private Subnet 1B
+    Type: String
+
+  ApplicationTag:
+    Description: Tag Application
+    Type: String
+
+  EnvironmentTag:
+    Description: Tag Environment
+    Type: String
+
+  SSHLocation:
+    Description: Allow SSH
+    Type: String
+
+  CertificateId:
+    Description: CertificateId to HTTPS Listener
+    Type: String
+
+  SslPolicy:
+    Description: SSL Certificate Policy
+    Type: String
+    Default: ELBSecurityPolicy-2016-08
+    AllowedValues:
+      - ELBSecurityPolicy-2016-08
+      - ELBSecurityPolicy-TLS-1-0-2015-04
+      - ELBSecurityPolicy-TLS-1-1-2017-01
+      - ELBSecurityPolicy-TLS-1-2-2017-01
+      - ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+      - ELBSecurityPolicy-FS-2018-06
+      - ELBSecurityPolicy-FS-1-1-2019-08
+      - ELBSecurityPolicy-FS-1-2-2019-08
+      - ELBSecurityPolicy-FS-1-2-Res-2019-08
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref 'VpcNet'
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - vpc
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref 'CidrBlockPublicSubnet1A'
+      AvailabilityZone: !Select
+        - '0'
+        - !GetAZs
+          Ref: AWS::Region
+      VpcId: !Ref 'VPC'
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - public-1a
+
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref 'CidrBlockPublicSubnet1B'
+      AvailabilityZone: !Select
+        - '1'
+        - !GetAZs
+          Ref: AWS::Region
+      VpcId: !Ref 'VPC'
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - public-1b
+
+  PrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref 'CidrBlockPrivateSubnet1A'
+      AvailabilityZone: !Select
+        - '0'
+        - !GetAZs
+          Ref: AWS::Region
+      VpcId: !Ref 'VPC'
+      MapPublicIpOnLaunch: 'false'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - private-1a
+
+  PrivateSubnet1B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref 'CidrBlockPrivateSubnet1B'
+      AvailabilityZone: !Select
+        - '1'
+        - !GetAZs
+          Ref: AWS::Region
+      VpcId: !Ref 'VPC'
+      MapPublicIpOnLaunch: 'false'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - private-1b
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - vpc-gateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref 'VPC'
+      InternetGatewayId: !Ref 'InternetGateway'
+    DependsOn:
+      - VPC
+      - InternetGateway
+
+  NatEIPAllocation1A:
+    Type: AWS::EC2::EIP
+    Description: Subnet 2A Nat EIP allocation id
+    Properties:
+      Domain: vpc
+    DependsOn: AttachGateway
+
+  NatEIPAllocation1B:
+    Type: AWS::EC2::EIP
+    Description: Subnet 2A Nat EIP allocation id
+    Properties:
+      Domain: vpc
+    DependsOn: AttachGateway
+
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - NatEIPAllocation1A
+          - AllocationId
+      SubnetId: !Ref 'PublicSubnet1A'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - nat-gateway-a
+    DependsOn: 
+      - AttachGateway
+      - NatEIPAllocation1A
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - NatEIPAllocation1B
+          - AllocationId
+      SubnetId: !Ref 'PublicSubnet1B'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - nat-gateway-b
+    DependsOn: 
+      - AttachGateway
+      - NatEIPAllocation1B
+
+  PublicSubnetRoute:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - public-route
+    DependsOn: VPC
+
+  PrivateSubnetRouteA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - private-route-a
+    DependsOn: VPC
+
+  PrivateSubnetRouteB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - private-route-b
+    DependsOn: VPC
+
+  SubnetRouteAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PublicSubnetRoute'
+      SubnetId: !Ref 'PublicSubnet1A'
+
+  SubnetRouteAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PublicSubnetRoute'
+      SubnetId: !Ref 'PublicSubnet1B'
+
+  SubnetRouteAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PrivateSubnetRouteA'
+      SubnetId: !Ref 'PrivateSubnet1A'
+
+  SubnetRouteAssociation4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PrivateSubnetRouteB'
+      SubnetId: !Ref 'PrivateSubnet1B'
+
+  PublicSubnetRouteRule1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      RouteTableId: !Ref 'PublicSubnetRoute'
+      GatewayId: !Ref 'InternetGateway'
+    DependsOn:
+      - InternetGateway
+      - PublicSubnetRoute
+      - SubnetRouteAssociation1
+      - SubnetRouteAssociation2
+
+  NatSubnet1ARouteRule1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      RouteTableId: !Ref 'PrivateSubnetRouteA'
+      NatGatewayId: !Ref 'NatGatewayA'
+    DependsOn:
+      - InternetGateway
+      - PrivateSubnetRouteA
+      - SubnetRouteAssociation1
+      - SubnetRouteAssociation2
+
+  NatSubnet1BRouteRule2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      RouteTableId: !Ref 'PrivateSubnetRouteB'
+      NatGatewayId: !Ref 'NatGatewayB'
+    DependsOn:
+      - InternetGateway
+      - PrivateSubnetRouteB
+      - SubnetRouteAssociation1
+      - SubnetRouteAssociation2
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - alb
+      Subnets: 
+        - !Ref PublicSubnet1A
+        - !Ref PublicSubnet1B
+      SecurityGroups: 
+        - !Ref LoadBalancerSecurityGroup
+      Tags: 
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - alb
+    DependsOn:
+      - PublicSubnet1A
+      - PublicSubnet1B
+      - LoadBalancerSecurityGroup   
+
+  LoadBalancerHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP 
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+    DependsOn:
+      - LoadBalancer
+      - DefaultTargetGroup
+
+  LoadBalancerHTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Join
+          - ":"
+          - - arn:aws:acm
+            - !Ref AWS::Region
+            - !Ref AWS::AccountId
+            - !Join ["/", ["certificate", !Ref CertificateId ]]
+      SslPolicy: !Ref SslPolicy
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+    DependsOn:
+      - LoadBalancer
+      - DefaultTargetGroup          
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - tg
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+    DependsOn:
+      - VPC
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - alb-sg
+      GroupDescription: 'Application LoadBalncer security group'
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: '0.0.0.0/0'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - alb-sg
+    DependsOn: VPC
+
+
+  InternalLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - alb-internal
+      Subnets: 
+        - !Ref PrivateSubnet1A
+        - !Ref PrivateSubnet1B
+      SecurityGroups: 
+        - !Ref InternalLoadBalancerSecurityGroup
+      Tags: 
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil      
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - alb
+    DependsOn:
+      - PrivateSubnet1A
+      - PrivateSubnet1B
+      - InternalLoadBalancerSecurityGroup
+
+  InternalLoadBalancerHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref InternalLoadBalancer
+      Port: 80
+      Protocol: HTTP 
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref DefaultInternalTargetGroup
+    DependsOn:
+      - InternalLoadBalancer
+      - DefaultInternalTargetGroup
+
+  DefaultInternalTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - tg-internal
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+    DependsOn:
+      - VPC
+
+  InternalLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - alb-internal-sg
+      GroupDescription: 'Internal Application LoadBalncer Security Group'
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: '-1'
+          SourceSecurityGroupId: !Ref 'PrivateHostsSecurityGroup'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - alb-sg
+    DependsOn: VPC
+
+  MCPAcceleratorApi:
+    Type: 'AWS::GlobalAccelerator::Accelerator'
+    Properties:
+      Name: !Join
+        - '-'
+        - - !Ref Prefix
+          - accelerator-api
+      IpAddressType: "IPV4"
+      Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - accelerator-api
+  
+  MCPAcceleratorApiListener:
+    Type: 'AWS::GlobalAccelerator::Listener'
+    Properties:
+      AcceleratorArn: !Ref MCPAcceleratorApi
+      Protocol: TCP
+      PortRanges:
+        - FromPort: '80'
+          ToPort: '80'
+        - FromPort: '443'
+          ToPort: '443'
+
+  MCPAcceleratorApiEndpointGroup:
+    Type: 'AWS::GlobalAccelerator::EndpointGroup'
+    Properties:
+      ListenerArn: !Ref MCPAcceleratorApiListener
+      EndpointGroupRegion: sa-east-1
+      EndpointConfigurations:
+        - EndpointId: !Ref LoadBalancer
+          ClientIPPreservationEnabled: true
+
+  PrivateHostsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - private-sg
+      GroupDescription: Privation hosts security group
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref 'BastionHostSecurityGroup'
+        - IpProtocol: '-1'
+          CidrIp: !Ref CidrBlockPrivateSubnet1A
+        - IpProtocol: '-1'
+          CidrIp: !Ref CidrBlockPrivateSubnet1B
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil          
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - private-sg
+    DependsOn: 
+      - VPC
+      - BastionHostSecurityGroup
+
+  BastionHostSecurityGroupIngressPOA1:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref BastionHostSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: '167.250.31.116/32'
+    DependsOn: BastionHostSecurityGroup
+
+  BastionHostSecurityGroupIngressPOA2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref BastionHostSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: '179.232.87.80/32'
+    DependsOn: BastionHostSecurityGroup
+
+  BastionHostSecurityGroupIngressPOA3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref BastionHostSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: '177.220.206.154/32'
+    DependsOn: BastionHostSecurityGroup    
+
+  BastionHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - bastion-sg
+      GroupDescription: bastion hosts security group
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref 'SSHLocation'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Environment
+          Value: !Ref 'EnvironmentTag'
+        - Key: CostCenter
+          Value: jaf-brazil           
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - bastion-sg
+    DependsOn: VPC
+
+  BastionAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - bastion-asg
+      VPCZoneIdentifier: 
+        - !Ref 'PublicSubnet1A'
+        - !Ref 'PublicSubnet1B'
+      LaunchConfigurationName: !Ref 'BastionLaunchConfig'
+      DesiredCapacity: 1
+      MinSize: 1
+      MaxSize: 1
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentTag
+          PropagateAtLaunch: true
+        - Key: CostCenter
+          Value: jaf-brazil 
+          PropagateAtLaunch: true         
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'Prefix'
+              - bastion-host
+          PropagateAtLaunch: true
+  
+  BastionLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType: t3.nano
+      ImageId: !Ref 'LatestAmiId'
+      KeyName: !Ref 'KeyName'
+      SecurityGroups:
+        - !Ref BastionHostSecurityGroup
+
+  StopStartInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - stopstart-instance
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+
+  StopStartInstancePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - stopstart-instance
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - ec2:DescribeInstances
+            - ec2:StartInstances
+            - ec2:StopInstances
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Resource: '*'
+      Roles:
+        - !Ref 'StopStartInstanceRole'
+    DependsOn: StopStartInstanceRole
+
+  StopStartInstanceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - stopstart-instance
+      Handler: index.handler
+      Role: !GetAtt StopStartInstanceRole.Arn
+      Code:
+        S3Bucket: !Ref 'S3BucketDeploy'
+        S3Key: 'lambdas/stop-start-instance-1.1.zip'
+      Runtime: nodejs10.x
+      Timeout: 25
+
+  StopStartInstanceTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Join
+        - '-'
+        - - !Ref Prefix
+          - stopstart-topic
+      TopicName: !Join
+        - '-'
+        - - !Ref Prefix
+          - stopstart-topic
+      Subscription:
+        - Endpoint: !Ref 'SNSEmail'
+          Protocol: email
+
+  ScheduledStartRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRule Start Instances"
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - start-instance
+      ScheduleExpression: "cron(30 8 * * ? *)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "StopStartInstanceFunction"
+              - "Arn"
+          Id: "TargetFunctionV1"
+          Input: '{"action": "start"}'
+
+  ScheduledStopRule: 
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "ScheduledRule Stop Instances"
+      Name: !Join
+        - '-'
+        - - !Ref 'Prefix'
+          - stop-instance
+      ScheduleExpression: "cron(0 23 * * ? *)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "StopStartInstanceFunction"
+              - "Arn"
+          Id: "TargetFunctionV1"
+          Input: '{"action": "stop"}'
+
+  StartInstanceFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt StopStartInstanceFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ScheduledStartRule"
+          - "Arn"
+
+  StopInstanceFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt StopStartInstanceFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ScheduledStopRule"
+          - "Arn"
+
+Outputs:
+
+  VPC:
+    Value: !Ref VPC
+    Description: 'VPC'
+    Export:
+      Name: VPC    
+  
+  PrivateSubnet1A:
+    Value: !Ref PrivateSubnet1A
+    Description: 'Private Subnet 1A'
+    Export:
+      Name: PrivateSubnet1A    
+
+  PrivateSubnet1B:
+    Value: !Ref PrivateSubnet1B
+    Description: 'Private Subnet 1B'
+    Export:
+      Name: PrivateSubnet1B    
+
+  PrivateHostsSecurityGroup:
+    Value: !Ref PrivateHostsSecurityGroup
+    Description: 'Private Hosts Security Group'
+    Export:
+      Name: PrivateHostsSecurityGroup    
+  
+  LoadBalancer:
+    Value: !Ref LoadBalancer
+    Description: 'LoadBalancer'
+    Export:
+      Name: LoadBalancer 
+
+  LoadBalancerDNSName:
+    Value: !GetAtt LoadBalancer.DNSName
+    Description: 'Load Balancer DNS Name'
+    Export:
+      Name: LoadBalancerDNSName 
+
+  LoadBalancerSecurityGroup:
+    Value: !Ref LoadBalancerSecurityGroup
+    Description: 'Load Balancer Security Group'
+    Export:
+      Name: LoadBalancerSecurityGroup 
+
+  LoadBalancerHTTPListener:
+    Value: !Ref LoadBalancerHTTPListener
+    Description: 'Load Balancer HTTP Listener'
+    Export:
+      Name: LoadBalancerHTTPListener
+
+  LoadBalancerHTTPSListener:
+    Value: !Ref LoadBalancerHTTPSListener
+    Description: 'Load Balancer HTTPS Listener'
+    Export:
+      Name: LoadBalancerHTTPSListener
+
+  InternalLoadBalancer:
+    Value: !Ref InternalLoadBalancer
+    Description: 'Internal LoadBalancer'
+    Export:
+      Name: InternalLoadBalancer 
+
+  InternalLoadBalancerDNSName:
+    Value: !GetAtt InternalLoadBalancer.DNSName
+    Description: 'Internal Load Balancer DNS Name'
+    Export:
+      Name: InternalLoadBalancerDNSName    
+
+  InternalLoadBalancerSecurityGroup:
+    Value: !Ref InternalLoadBalancerSecurityGroup
+    Description: 'Internal LoadBalancer Security Group'
+    Export:
+      Name: InternalLoadBalancerSecurityGroup 
+
+  InternalLoadBalancerHTTPListener:
+    Value: !Ref InternalLoadBalancerHTTPListener
+    Description: 'Internal LoadBalancer HTTP Listener'
+    Export:
+      Name: InternalLoadBalancerHTTPListener 
+
+  MCPAcceleratorApiDNS:
+    Description: DNS for Global Accelerator
+    Value: !GetAtt MCPAcceleratorApi.DnsName
+    Export:
+      Name: MCPAcceleratorApiDNS 

@@ -1,0 +1,15 @@
+[
+    { "ParameterKey": "EnvironmentTag", "ParameterValue": "prd" },
+    { "ParameterKey": "SetupTag", "ParameterValue": "jaf" },
+    { "ParameterKey": "KeyName", "ParameterValue": "spo-jaf-key" },
+    { "ParameterKey": "S3BucketDeploy", "ParameterValue": "spo-jaf-deploy" },
+    { "ParameterKey": "S3BucketTools", "ParameterValue": "spo-jaf-tools" },
+    { "ParameterKey": "S3BucketBackupLogs", "ParameterValue": "spo-jaf-backup-logs" },
+    { "ParameterKey": "SNSEmail", "ParameterValue": "jorgef.flores@gmail.com" },
+    { "ParameterKey": "SSHLocation", "ParameterValue": "179.232.76.97/32" },
+    { "ParameterKey": "LatestAmiId", "ParameterValue": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2" },
+    { "ParameterKey": "VpcNet", "ParameterValue": "10.0.0.0/16" },
+    { "ParameterKey": "CertificateId", "ParameterValue": "ff327efc-4096-47fa-805f-fa8edcdc7306"},
+    { "ParameterKey": "SslPolicy", "ParameterValue": "ELBSecurityPolicy-2016-08" },
+    { "ParameterKey": "CFTemplatesUrl", "ParameterValue": "https://spo-jaf-cf-templates.s3.amazonaws.com" }
+  ]

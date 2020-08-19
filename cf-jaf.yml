@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Configure VPC
+Parameters:
+
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: jaf-prod
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  
+  LatestAmiId:
+    Type:  'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  
+  SSHLocation:
+    Description: Comma separated IP address ranges that can be used to SSH to the
+      EC2 instances
+    Type: String
+    Default: 200.233.156.241/32
+     
+  EnvironmentTag:
+    Default: tst
+    Description: Tag resources with environment name for easy filtering
+    Type: String
+    AllowedValues:
+      - 'tst'
+      - 'hlg'
+      - 'prd'
+
+  SetupTag:
+    Description: Setup name to be shared across master-slave regions
+    Default: jaf
+    Type: String
+  
+  S3BucketTools:
+    Description: Bucket where the tools need to setup the environment are
+    Default: jaf-tools
+    Type: String
+
+  S3BucketDeploy:
+    Description: Bucket where the deploys artifacts are
+    Default: jaf-deploy
+    Type: String
+
+  S3BucketBackupLogs:
+    Description: Bucket where backup logs
+    Default: jaf-backup-logs
+    Type: String
+
+  VpcNet:
+    Description: 'VPC Net range, e.g. : 10.0.0.0/16'
+    Default: 10.0.0.0/16
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range in x.x.x.x/x format.
+  
+  CidrBlockPublicSubnet1A:
+    Description: 'Subnet CIDR Public1A block , e.g. : 10.10.0.0/24'
+    Default: 10.0.1.0/24
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range in x.x.x.x/x format.
+
+  CidrBlockPublicSubnet1B:
+    Description: 'Subnet CIDR Public1B block , e.g. : 10.10.0.0/24'
+    Default: 10.0.2.0/24
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range in x.x.x.x/x format.
+
+  CidrBlockPrivateSubnet1A:
+    Description: 'Subnet CIDR Private1A block , e.g. : 10.10.0.0/24'
+    Default: 10.0.3.0/24
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range in x.x.x.x/x format.
+
+  CidrBlockPrivateSubnet1B:
+    Description: 'Subnet CIDR Private1B block , e.g. : 10.10.0.0/24'
+    Default: 10.0.4.0/24
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range in x.x.x.x/x format.
+
+  CFTemplatesUrl:
+    Default: https://jaf-devops-cloudformation.s3-us-west-2.amazonaws.com
+    Type: String
+
+  SNSEmail:
+    Default: jorgef.flores@gmail.com
+    Description: Email address to notify
+    Type: String
+
+  CertificateId:
+    Description: CertificateId to HTTPS Listener
+    Type: String
+
+  SslPolicy:
+    Description: SSL Policy to HTTPS Listener
+    Type: String
+
+Mappings:
+
+  RegionShortCode:
+    us-east-1:
+      value: nvi
+    us-east-2:
+      value: ohi
+    us-west-1:
+      value: nca
+    us-west-2:
+      value: ore
+    eu-west-1: 
+      value: ire
+    eu-central-1:
+      value: fkt
+    ap-northeast-1:
+      value: tko
+    ap-northeast-2:
+      value: seo
+    ap-southeast-1:
+      value: sgo
+    ap-southeast-2:
+      value: syd
+    ap-south-1:
+      value: mmb
+    sa-east-1:
+      value: spo
+    cn-north-1:
+      value: bjg
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: S3 Buckets
+        Parameters:
+          - S3BucketTools
+          - S3BucketDeploy
+      - Label:
+          default: Templates
+        Parameters:
+          - CFTemplatesUrl
+      - Label:
+          default: Setup Environment
+        Parameters:
+          - EnvironmentTag
+          - SetupTag
+          - KeyName
+          - LatestAmiId
+          - SSHLocation
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcNet
+          - CidrBlockPublicSubnet1A
+          - CidrBlockPublicSubnet1B
+          - CidrBlockPrivateSubnet1A
+          - CidrBlockPrivateSubnet1B
+          - CertificateId
+          - CertificateId2
+          - SslPolicy
+
+Conditions:
+  ISProduction: !Equals
+    - !Ref 'EnvironmentTag'
+    - 'prd'
+      
+Resources:
+
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${CFTemplatesUrl}/cf-jaf-vpc.yml
+      Parameters:
+        Prefix: !Join
+          - '-'
+          - - !FindInMap [ RegionShortCode, !Ref 'AWS::Region', value ]
+            - !Ref 'EnvironmentTag'
+            - !Ref 'SetupTag'
+        ApplicationTag: !Ref 'AWS::StackName'
+        EnvironmentTag: !Ref EnvironmentTag
+        LatestAmiId: !Ref LatestAmiId
+        KeyName: !Ref KeyName
+        VpcNet: !Ref VpcNet
+        SSHLocation: !Ref SSHLocation
+        CidrBlockPublicSubnet1A: !Ref CidrBlockPublicSubnet1A
+        CidrBlockPublicSubnet1B: !Ref CidrBlockPublicSubnet1B
+        CidrBlockPrivateSubnet1A: !Ref CidrBlockPrivateSubnet1A
+        CidrBlockPrivateSubnet1B: !Ref CidrBlockPrivateSubnet1B
+        CertificateId: !Ref CertificateId
+        CertificateId2: !Ref CertificateId2
+        SslPolicy: !Ref SslPolicy
+        SNSEmail: !Ref 'SNSEmail'
+        S3BucketDeploy: !Ref S3BucketDeploy
+        
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Join
+          - '-'
+          - - !FindInMap [ RegionShortCode, !Ref 'AWS::Region', value ]
+            - !Ref 'EnvironmentTag'
+            - !Ref 'SetupTag'
+            - alarms-brazil
+      Subscription:
+        - Endpoint: !Ref 'SNSEmail'
+          Protocol: email
+        - Endpoint: "https://events.pagerduty.com/integration/<ID>/enqueue"
+          Protocol: https
+
